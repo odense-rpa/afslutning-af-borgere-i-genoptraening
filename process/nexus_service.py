@@ -1,6 +1,6 @@
 from datetime import datetime, timedelta
 from kmd_nexus_client import NexusClientManager
-from kmd_nexus_client.tree_helpers import filter_by_path, filter_by_predicate
+from kmd_nexus_client.tree_helpers import filter_by_path
 from odk_tools.tracking import Tracker
 
 
@@ -258,7 +258,7 @@ class NexusService:
                     ansvarlig_organisation="Myndighed genoptræning",
                     start_dato=datetime.now().date(),
                     forfald_dato=datetime.now().date() + timedelta(days=7),
-                    beskrivelse=f"""Opgave oprettet på vegne af: {leverandørnavn}""",
+                    beskrivelse=f"Opgave oprettet på vegne af: {leverandørnavn}",
                 )
 
         opgave = self.nexus.hent_fra_reference(opgave_reference)
