@@ -84,7 +84,7 @@ class NexusService:
             skema_ref
             for skema_ref in filtrerede_skema_referencer
             if skema_ref.get("formDataStatus") == "Aktivt"
-            and skema_ref.get("name") == "Generelle oplysninger"
+            and skema_ref.get("name") != "Generelle oplysninger"
         ]
 
         for skema_reference in aktive_skemaer:
