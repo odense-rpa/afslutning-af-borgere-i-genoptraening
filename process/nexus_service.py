@@ -96,11 +96,11 @@ class NexusService:
             )
 
             if len(leverandør_audit) > 0:
-                skema_levarandør = leverandør_audit[0]["professional"][
+                primary_org = leverandør_audit[0]["professional"].get(
                     "primaryOrganization"
-                ]["name"]
-
-                if skema_levarandør == leverandørnavn:
+                )
+                
+                if primary_org and primary_org.get("name") == leverandørnavn:
                     # Fjern skemaets relationer
                     relationer = self.nexus.nexus_client.get(
                         skema["_links"]["relatedActivities"]["href"]
