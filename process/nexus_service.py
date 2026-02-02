@@ -92,7 +92,7 @@ class NexusService:
 
             historik = self.nexus.skemaer.hent_skema_historik(skema=skema)
             leverandør_audit = sorted(
-                historik, key=lambda entry: entry["version"], reverse=True
+                historik, key=lambda entry: entry["date"], reverse=False
             )
 
             if len(leverandør_audit) > 0:
