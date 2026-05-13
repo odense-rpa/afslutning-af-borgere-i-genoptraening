@@ -68,15 +68,11 @@ async def process_workqueue(workqueue: Workqueue):
             ).json()
             opgave_skema = nexus.hent_fra_reference(opgave_skema)
 
-            try:
-                # TODO: Tilret til rigtige CPR-numre
-                # borger = nexus.borgere.hent_borger(
-                #     data["patients"][0]["patientIdentifier"]["identifier"]
-                # )
-
-                # Test CPR-nummer
-                borger = nexus.borgere.hent_borger("010490-9989")
-
+            try:                
+                borger = nexus.borgere.hent_borger(
+                    data["patients"][0]["patientIdentifier"]["identifier"]
+                )
+                
                 if borger is None:
                     continue
 
