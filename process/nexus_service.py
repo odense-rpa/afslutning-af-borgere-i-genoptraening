@@ -325,21 +325,22 @@ class NexusService:
             )
             return True
 
-        henvisnings_skema = self.nexus.hent_fra_reference(henvisnings_skemaer[0])
-        if not henvisnings_skema.get("workflowState", {}).get("name") == "Udfyldt":
-            try:
-                self.nexus.skemaer.rediger_skema(
-                    skema=henvisnings_skema, handling_navn="Udfyldt", data={}
-                )
-            except Exception:
-                report(
-                    report_id="afslutning_af_borgere_i_genoptraening",
-                    group="Fejl",
-                    json={
-                        "Cpr": borger["patientIdentifier"]["identifier"],
-                        "Fejl": "Kunne ikke redigere henvisningsskema med status Udfyldt",
-                    },
-                )
-                return True
+        if len (henvisnings_skemaer) > 0:
+            henvisnings_skema = self.nexus.hent_fra_reference(henvisnings_skemaer[0])
+            if not henvisnings_skema.get("workflowState", {}).get("name") == "Udfyldt":
+                try:
+                    self.nexus.skemaer.rediger_skema(
+                        skema=henvisnings_skema, handling_navn="Udfyldt", data={}
+                    )
+                except Exception:
+                    report(
+                        report_id="afslutning_af_borgere_i_genoptraening",
+                        group="Fejl",
+                        json={
+                            "Cpr": borger["patientIdentifier"]["identifier"],
+                            "Fejl": "Kunne ikke redigere henvisningsskema med status Udfyldt",
+                        },
+                    )
+                    return True
 
         return False
