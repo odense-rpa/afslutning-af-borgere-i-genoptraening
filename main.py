@@ -17,11 +17,12 @@ from process.nexus_service import NexusService
 nexus: NexusClientManager
 tracker: Tracker
 nexus_service: NexusService
+proces_navn = "Afslutning af borgere i genoptræning"
 
 
 async def populate_queue(workqueue: Workqueue):
     aktivitetsliste = nexus.aktivitetslister.hent_aktivitetsliste(
-        navn="Opgaver: Robot - alle opgavetyper robotten håndterer",
+        navn="Robot - afslut genoptræningsforløb SUL § 140",
         organisation=None,
         medarbejder=None,
         antal_sider=10,
@@ -33,7 +34,7 @@ async def populate_queue(workqueue: Workqueue):
     aktivitetsliste = [
         aktivitet
         for aktivitet in aktivitetsliste
-        if aktivitet.get("name") == "Robot - afslut borger"
+        if aktivitet.get("name") == "Robot - afslut genoptræningsforløb SUL § 140"
         and aktivitet["status"] == "Aktiv"
         and datetime.strptime(aktivitet["date"], "%Y-%m-%dT%H:%M:%S.%f%z")
         > datetime.now(timezone.utc) - timedelta(days=7)
@@ -43,66 +44,89 @@ async def populate_queue(workqueue: Workqueue):
         for aktivitet in aktivitetsliste:
             eksisterende_kødata = workqueue.get_item_by_reference(str(aktivitet["id"]))
 
-            if len(eksisterende_kødata) > 0:
+            if (
+                len(eksisterende_kødata) > 0
+                or aktivitet["description"] == "Myndighed genoptræning"
+            ):
                 continue
 
             workqueue.add_item(aktivitet, str(aktivitet["id"]))
 
 
 async def process_workqueue(workqueue: Workqueue):
-    logger = logging.getLogger(__name__)    
+    logger = logging.getLogger(__name__)
 
     for item in workqueue:
         with item:
+            opgave_lukket = False
             data = item.data  # Item data deserialized from json as dict
             leverandørnavn = data["description"]
-            fejlbesked = ""
+            opgave = nexus.hent_fra_reference(data)            
+
+            opgave_skema = nexus.nexus_client.get(
+                    data["children"][0]
+                    .get("_links")
+                    .get("referencedObject")
+                    .get("href")
+                ).json()
+            opgave_skema = nexus.hent_fra_reference(opgave_skema)
 
             try:
-                borger = nexus.borgere.hent_borger(
-                    data["patients"][0]["patientIdentifier"]["identifier"]
-                )
+                # TODO: Tilret til rigtige CPR-numre
+                # borger = nexus.borgere.hent_borger(
+                #     data["patients"][0]["patientIdentifier"]["identifier"]
+                # )
+
+                # Test CPR-nummer
+                borger = nexus.borgere.hent_borger("010490-9989")
 
                 if borger is None:
                     continue
 
-                fejlbesked = nexus_service.afslut_indsatser(
-                    borger=borger, leverandørnavn=leverandørnavn
-                )
+                udenbys_borger = nexus_service.kontroller_udenbys_borger(borger=borger, opgave_skema=opgave_skema)
 
-                if fejlbesked:
-                    # Exit tidligt pga. evt. udenbys borger
-                    nexus_service.afslut_opgave(
-                        borger=borger,
-                        leverandørnavn=leverandørnavn,
-                        opgave_reference=data,
-                        fejl_beskrivelse=fejlbesked,
-                    )
+                if udenbys_borger:                    
+                    continue
+                
+                if nexus_service.er_der_flere_genoptræningsplaner(
+                    borger=borger,
+                    opgave_skema=opgave_skema,
+                    leverandørnavn=leverandørnavn,
+                ):
                     continue
 
-                nexus_service.afslut_skemaer(
+                nexus_service.kontroller_aktive_hjælpemidler(
                     borger=borger, leverandørnavn=leverandørnavn
                 )
+
+                nexus_service.fjern_relationer_og_inaktiver_tilstande(borger=borger)
+                nexus_service.afslut_indsatser(borger=borger)
+                nexus_service.afslut_skemaer(borger=borger)                
+                nexus_service.fjern_medarbejdere(borger=borger)
+                nexus_service.afslut_forløbsindplacering(borger=borger)
+
+                if not nexus_service.afslut_forløb(borger=borger):
+                    tracker.track_partial_task(process_name=proces_navn)
+                    continue
 
                 nexus_service.fjern_organisationstilknytning(
                     borger=borger, leverandørnavn=leverandørnavn
                 )
 
-                fejlbesked = nexus_service.kontroller_myndighedsindsatser(
-                    borger=borger, leverandørnavn=leverandørnavn
-                )
+                nexus.opgaver.luk_opgave(opgave)
+                opgave_lukket = True
+                tracker.track_task(proces_navn)
 
-                nexus_service.afslut_opgave(
-                    borger=borger,
-                    leverandørnavn=leverandørnavn,
-                    opgave_reference=data,
-                    fejl_beskrivelse=fejlbesked,
-                )
-
-            except WorkItemError as e:
+            except WorkItemError as e:                
                 # A WorkItemError represents a soft error that indicates the item should be passed to manual processing or a business logic fault
                 logger.error(f"Error processing item: {data}. Error: {e}")
                 item.fail(str(e))
+                
+            finally:
+                if not opgave_lukket:
+                    nexus.opgaver.luk_opgave(opgave)
+                    tracker.track_partial_task(process_name=proces_navn)
+                
 
 
 if __name__ == "__main__":
@@ -123,7 +147,6 @@ if __name__ == "__main__":
         client_secret=nexus_credential.password,
         instance=nexus_credential.data["instance"],
     )
-
     nexus_service = NexusService(nexus=nexus, tracker=tracker)
 
     tracker = Tracker(
