@@ -61,14 +61,11 @@ async def process_workqueue(workqueue: Workqueue):
             opgave_lukket = False
             data = item.data  # Item data deserialized from json as dict
             leverandørnavn = data["description"]
-            opgave = nexus.hent_fra_reference(data)            
+            opgave = nexus.hent_fra_reference(data)
 
             opgave_skema = nexus.nexus_client.get(
-                    data["children"][0]
-                    .get("_links")
-                    .get("referencedObject")
-                    .get("href")
-                ).json()
+                data["children"][0].get("_links").get("referencedObject").get("href")
+            ).json()
             opgave_skema = nexus.hent_fra_reference(opgave_skema)
 
             try:
@@ -83,11 +80,13 @@ async def process_workqueue(workqueue: Workqueue):
                 if borger is None:
                     continue
 
-                udenbys_borger = nexus_service.kontroller_udenbys_borger(borger=borger, opgave_skema=opgave_skema)
+                udenbys_borger = nexus_service.kontroller_udenbys_borger(
+                    borger=borger, opgave_skema=opgave_skema
+                )
 
-                if udenbys_borger:                    
+                if udenbys_borger:
                     continue
-                
+
                 if nexus_service.er_der_flere_genoptræningsplaner(
                     borger=borger,
                     opgave_skema=opgave_skema,
@@ -101,7 +100,7 @@ async def process_workqueue(workqueue: Workqueue):
 
                 nexus_service.fjern_relationer_og_inaktiver_tilstande(borger=borger)
                 nexus_service.afslut_indsatser(borger=borger)
-                nexus_service.afslut_skemaer(borger=borger)                
+                nexus_service.afslut_skemaer(borger=borger)
                 nexus_service.fjern_medarbejdere(borger=borger)
                 nexus_service.afslut_forløbsindplacering(borger=borger)
 
@@ -117,16 +116,15 @@ async def process_workqueue(workqueue: Workqueue):
                 opgave_lukket = True
                 tracker.track_task(proces_navn)
 
-            except WorkItemError as e:                
+            except WorkItemError as e:
                 # A WorkItemError represents a soft error that indicates the item should be passed to manual processing or a business logic fault
                 logger.error(f"Error processing item: {data}. Error: {e}")
                 item.fail(str(e))
-                
+
             finally:
                 if not opgave_lukket:
                     nexus.opgaver.luk_opgave(opgave)
                     tracker.track_partial_task(process_name=proces_navn)
-                
 
 
 if __name__ == "__main__":

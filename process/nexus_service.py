@@ -1,4 +1,4 @@
-from datetime import datetime, timedelta
+from datetime import datetime
 from kmd_nexus_client import NexusClientManager
 from kmd_nexus_client.functionality.tilstande import Tilstandsgruppe
 from kmd_nexus_client.tree_helpers import filter_by_path
@@ -15,10 +15,9 @@ class NexusService:
         self.nexus = nexus
         self.tracker = tracker
 
-
     def _afslut_indsats(self, borger: dict, indsats_reference: dict):
         indsats = self.nexus.hent_fra_reference(indsats_reference)
-        
+
         if indsats.get("workflowState", {}).get("name") in [
             "Afsluttet",
             "Annulleret",
@@ -26,10 +25,10 @@ class NexusService:
             "Frafaldet",
             "Afgjort",
             "Afslået",
-            "Ophørt"
+            "Ophørt",
         ]:
             return
-        
+
         try:
             if indsats["workflowState"]["name"] == "Tildelt":
                 self.nexus.indsatser.rediger_indsats(
@@ -46,14 +45,14 @@ class NexusService:
                 group="Fejl",
                 json={
                     "Cpr": borger["patientIdentifier"]["identifier"],
-                    "Fejl": "Kunne ikke afslutte indsats med navn: " + indsats.get("name", "Uden navn"),
+                    "Fejl": "Kunne ikke afslutte indsats med navn: "
+                    + indsats.get("name", "Uden navn"),
                 },
             )
 
-
     def afslut_indsatser(self, borger: dict):
         pathway = self.nexus.borgere.hent_visning(borger=borger)
-        referencer = self.nexus.borgere.hent_referencer(visning=pathway)        
+        referencer = self.nexus.borgere.hent_referencer(visning=pathway)
         indsatser_referencer = filter_by_path(
             referencer,
             path_pattern="/Ældre og sundhedsfagligt grundforløb/Sag SOFF: Genoptræning og fysioterapi efter sundhedsloven/Indsatser/basketGrantReference",
@@ -62,8 +61,6 @@ class NexusService:
 
         for indsats_reference in indsatser_referencer:
             self._afslut_indsats(borger, indsats_reference)
-
-        
 
     def afslut_skemaer(self, borger: dict):
         pathway = self.nexus.borgere.hent_visning(borger=borger)
@@ -98,14 +95,14 @@ class NexusService:
                 for aktivitet in relation.get("citizenActivitiesGroups", []):
                     for aktivitet_item in aktivitet.get("activities", []):
                         try:
-                            self.nexus.nexus_client.delete(aktivitet_item["_links"]["deleteActivityLink"]["href"])
+                            self.nexus.nexus_client.delete(
+                                aktivitet_item["_links"]["deleteActivityLink"]["href"]
+                            )
                         except Exception:
                             continue
-                
 
             # Sæt skema til inaktivt
             self.nexus.skemaer.rediger_skema(skema, "Inaktivt", data={})
-
 
     def kontroller_udenbys_borger(self, borger: dict, opgave_skema: dict) -> bool:
         pathway = self.nexus.borgere.hent_visning(borger=borger)
@@ -126,14 +123,15 @@ class NexusService:
         filtrerede_indsats_referencer = [
             indsats
             for indsats in filtrerede_indsats_referencer
-            if indsats.get("workflowState", {}).get("name") not in [
+            if indsats.get("workflowState", {}).get("name")
+            not in [
                 "Afsluttet",
                 "Annulleret",
                 "Fjernet",
                 "Frafaldet",
                 "Afgjort",
                 "Afslået",
-                "Ophørt"
+                "Ophørt",
             ]
         ]
 
@@ -150,7 +148,6 @@ class NexusService:
             return True
 
         return False
-    
 
     def kontroller_aktive_hjælpemidler(self, borger: dict, leverandørnavn: str):
         # Check hjælpemidler
@@ -182,8 +179,6 @@ class NexusService:
                                         •	Kontakt Hjælpemiddelservice, hvis der er tale om hjælpemidler, der foreslås kasseret (f.eks. ikke genbrugelige kiler)""",
                     )
 
-
-
     def afslut_forløb(self, borger: dict) -> bool:
         pathway = self.nexus.borgere.hent_visning(borger=borger)
         referencer = self.nexus.borgere.hent_referencer(visning=pathway)
@@ -208,7 +203,6 @@ class NexusService:
             return False
         return True
 
-
     def afslut_forløbsindplacering(self, borger: dict):
         FORLØBS_BEGRÆNSNINGER = [
             "Sag SOFF: Helhedspleje",
@@ -216,7 +210,7 @@ class NexusService:
             "Sag SOFF: Sygepleje",
             "Sag SOFF: Dagcenter",
             "Sag SOFF: Kommunal tandpleje",
-            "Sag SOFF: Social service. Plejebolig og Ældrebolig"
+            "Sag SOFF: Social service. Plejebolig og Ældrebolig",
         ]
         pathway = self.nexus.borgere.hent_visning(borger=borger)
         referencer = self.nexus.borgere.hent_referencer(visning=pathway)
@@ -230,7 +224,7 @@ class NexusService:
             if len(forløbs_referencer) > 0:
                 # Returner hvis borger har én af disse aktive forløb, da der ikke er belæg for afslutning af forløbsindplacering
                 return
-        
+
         filtrerede_indsats_referencer = filter_by_path(
             referencer,
             path_pattern="/ÆHF - Forløbsindplacering (Grundforløb)/Forløbsindplacering/Indsatser/*",
@@ -248,11 +242,10 @@ class NexusService:
             path_pattern="/Ældre og sundhedsfagligt grundforløb/Sag SOFF: Genoptræning og fysioterapi efter sundhedsloven/professionalReference",
             active_pathways_only=True,
         )
-        for medarbejder_reference in medarbejder_referencer:            
+        for medarbejder_reference in medarbejder_referencer:
             self.nexus.organisationer.fjern_medarbejder_fra_forløb(
                 medarbejder_reference=medarbejder_reference
             )
-
 
     def fjern_organisationstilknytning(self, borger: dict, leverandørnavn: str):
         relationer = self.nexus.organisationer.hent_organisationer_for_borger(
@@ -265,21 +258,31 @@ class NexusService:
                 )
 
     def fjern_relationer_og_inaktiver_tilstande(self, borger: dict):
-        grupper = self.nexus.tilstande.hent_tilstandsgrupper(borger, Tilstandsgruppe.GENOPTRÆNING)
-        
+        grupper = self.nexus.tilstande.hent_tilstandsgrupper(
+            borger, Tilstandsgruppe.GENOPTRÆNING
+        )
+
         for visitation in grupper.get("conditionGroupVisitation", []):
             for condition in visitation.get("conditions", []):
                 if not condition.get("state") == "ACTIVE":
                     # Smider åbenbart HTTP 400, hvis man kalder på en inaktiv condition, som ikke har været aktiv før.
                     continue
 
-                relaterede_aktiviteter = self.nexus.nexus_client.get(condition.get("_links", {}).get("relatedActivities", []).get("href", "")).json()
+                relaterede_aktiviteter = self.nexus.nexus_client.get(
+                    condition.get("_links", {})
+                    .get("relatedActivities", [])
+                    .get("href", "")
+                ).json()
                 for kategori in relaterede_aktiviteter:
                     if kategori.get("groupName") == "Indsatser":
                         for aktivitet in kategori.get("citizenActivitiesGroups", []):
                             for aktivitet_item in aktivitet.get("activities", []):
                                 try:
-                                    self.nexus.nexus_client.delete(aktivitet_item["_links"]["deleteActivityLink"]["href"])
+                                    self.nexus.nexus_client.delete(
+                                        aktivitet_item["_links"]["deleteActivityLink"][
+                                            "href"
+                                        ]
+                                    )
                                 except Exception:
                                     continue
 
@@ -289,9 +292,10 @@ class NexusService:
                     condition["state"] = "INACTIVE"
 
         self.nexus.tilstande.opdater_tilstandsgrupper(grupper)
-                
 
-    def er_der_flere_genoptræningsplaner(self, borger: dict, opgave_skema: dict, leverandørnavn: str) -> bool:
+    def er_der_flere_genoptræningsplaner(
+        self, borger: dict, opgave_skema: dict, leverandørnavn: str
+    ) -> bool:
         pathway = self.nexus.borgere.hent_visning(borger=borger)
         referencer = self.nexus.borgere.hent_referencer(visning=pathway)
 
@@ -300,13 +304,13 @@ class NexusService:
             path_pattern="/Ældre og sundhedsfagligt grundforløb/Sag SOFF: Genoptræning og fysioterapi efter sundhedsloven/formDataV2Reference",
             active_pathways_only=True,
         )
-        
+
         henvisnings_skemaer = [
             skema_ref
             for skema_ref in henvisnings_skemaer
             if skema_ref.get("name")
-            == "Henvisning - Genoptræning efter sundhedsloven med indberetning" and 
-            skema_ref.get("formDataStatus") != "Slettet"
+            == "Henvisning - Genoptræning efter sundhedsloven med indberetning"
+            and skema_ref.get("formDataStatus") != "Slettet"
         ]
 
         if len(henvisnings_skemaer) > 1:
@@ -322,10 +326,7 @@ class NexusService:
             return True
 
         henvisnings_skema = self.nexus.hent_fra_reference(henvisnings_skemaer[0])
-        if (
-            not henvisnings_skema.get("workflowState", {}).get("name")
-            == "Udfyldt"
-        ):
+        if not henvisnings_skema.get("workflowState", {}).get("name") == "Udfyldt":
             try:
                 self.nexus.skemaer.rediger_skema(
                     skema=henvisnings_skema, handling_navn="Udfyldt", data={}
