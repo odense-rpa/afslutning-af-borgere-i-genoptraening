@@ -91,7 +91,9 @@ async def process_workqueue(workqueue: Workqueue):
                     continue
 
                 nexus_service.kontroller_aktive_hjælpemidler(
-                    borger=borger, leverandørnavn=leverandørnavn
+                    borger=borger,
+                    leverandørnavn=leverandørnavn,
+                    opgave_skema=opgave_skema,
                 )
 
                 nexus_service.fjern_relationer_og_inaktiver_tilstande(borger=borger)

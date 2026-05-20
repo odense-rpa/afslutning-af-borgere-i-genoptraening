@@ -15,6 +15,13 @@ class NexusService:
         self.nexus = nexus
         self.tracker = tracker
 
+    def _har_available_assignment_types(self, objekt: dict) -> bool:
+        return bool(
+            objekt.get("_links", {})
+            .get("availableAssignmentTypes", {})
+            .get("href")
+        )
+
     def _afslut_indsats(self, borger: dict, indsats_reference: dict):
         indsats = self.nexus.hent_fra_reference(indsats_reference)
 
@@ -149,7 +156,9 @@ class NexusService:
 
         return False
 
-    def kontroller_aktive_hjælpemidler(self, borger: dict, leverandørnavn: str):
+    def kontroller_aktive_hjælpemidler(
+        self, borger: dict, leverandørnavn: str, opgave_skema: dict
+    ):
         # Check hjælpemidler
         hjaelpemiddelsindsatser = [
             "SEL § 86 Træning Hjælpemidler",
@@ -163,21 +172,36 @@ class NexusService:
             for udlån in aktive_udlån:
                 grant = udlån.get("grant") or {}
                 if grant.get("name") in hjaelpemiddelsindsatser:
-                    self.nexus.opgaver.opret_opgave(
-                        objekt=udlån,
-                        opgave_type="Opfølgning på udlån af træningsredskab",
-                        titel="Opfølgning på udlån af træningsredskab",
-                        ansvarlig_organisation=leverandørnavn,
-                        start_dato=datetime.now().date(),
-                        forfald_dato=datetime.now().date(),
-                        beskrivelse=""""I forbindelse med afslutning af borgerens træningsforløb, er det konstateret, at der fortsat er aktive udlån af træningsredskaber fra Hjælpemiddelservice. 
-                                        I bedes derfor følge op på disse udlån i forhold til følgende muligheder:
-                                        
-                                        •	Bestil hjemtagning i Nexus (efter forudgående aftale med borger)
-                                        •	Kontakt Myndighed for forespørgsel om overflytning til SEL § 112 – varig bevilling
-                                        •	Bestil hjemtagning af de redskaber, som Myndighed ikke kan bevilge.
-                                        •	Kontakt Hjælpemiddelservice, hvis der er tale om hjælpemidler, der foreslås kasseret (f.eks. ikke genbrugelige kiler)""",
+                    opgave_objekt = (
+                        udlån
+                        if self._har_available_assignment_types(udlån)
+                        else opgave_skema
                     )
+                    try:
+                        self.nexus.opgaver.opret_opgave(
+                            objekt=opgave_objekt,
+                            opgave_type="Opfølgning på udlån af træningsredskab",
+                            titel="Opfølgning på udlån af træningsredskab",
+                            ansvarlig_organisation=leverandørnavn,
+                            start_dato=datetime.now().date(),
+                            forfald_dato=datetime.now().date(),
+                            beskrivelse=""""I forbindelse med afslutning af borgerens træningsforløb, er det konstateret, at der fortsat er aktive udlån af træningsredskaber fra Hjælpemiddelservice. 
+                                            I bedes derfor følge op på disse udlån i forhold til følgende muligheder:
+                                            
+                                            •	Bestil hjemtagning i Nexus (efter forudgående aftale med borger)
+                                            •	Kontakt Myndighed for forespørgsel om overflytning til SEL § 112 – varig bevilling
+                                            •	Bestil hjemtagning af de redskaber, som Myndighed ikke kan bevilge.
+                                            •	Kontakt Hjælpemiddelservice, hvis der er tale om hjælpemidler, der foreslås kasseret (f.eks. ikke genbrugelige kiler)""",
+                        )
+                    except Exception:
+                        report(
+                            report_id="afslutning_af_borgere_i_genoptraening",
+                            group="Fejl",
+                            json={
+                                "Cpr": borger["patientIdentifier"]["identifier"],
+                                "Fejl": "Kunne ikke oprette opfølgningsopgave på aktivt udlån",
+                            },
+                        )
 
     def afslut_forløb(self, borger: dict) -> bool:
         pathway = self.nexus.borgere.hent_visning(borger=borger)
