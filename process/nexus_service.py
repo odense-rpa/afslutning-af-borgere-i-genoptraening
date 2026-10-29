@@ -277,8 +277,10 @@ class NexusService:
         )
         for relation in relationer:
             if relation["organization"]["name"] == leverandørnavn:
-                self.nexus.organisationer.fjern_borger_fra_organisation(
-                    organisations_relation=relation
+                self.nexus.organisationer.opdater_borger_organisations_relation(
+                    relation=relation,
+                    slut_dato=datetime.now().date(),
+                    primær_organisation=False,
                 )
 
     def fjern_relationer_og_inaktiver_tilstande(self, borger: dict):
